@@ -23,44 +23,59 @@ if [ -z "$URL" ]; then
     usage
 fi
 
-# Baixa a página
-wget -q "$URL" -O index.html
+while true; do
+    # Baixa a página
+    wget -q "$URL" -O index.html
 
-# Extrai URLs
-LINKS=$(grep -oP '(?<=href=")[^"]+|(?<=src=")[^"]+' index.html | sort | uniq)
+    # Extrai URLs
+    LINKS=$(grep -oP '(?<=href=")[^"]+|(?<=src=")[^"]+' index.html | sort | uniq)
 
-# Cabeçalho
-echo -e "${NC}${LINE}"
-echo -e "${GREEN}[+] Resolvendo URLs em:${NC} $URL"
-echo -e "${NC}${LINE}"
-echo -e "${RED}Concluído: Salvando os resultados em: $URL.ip.txt"
-echo -e "${NC}${LINE}"
-printf "${NC}%-10s %-15s %-20s${NC}\n" "Line" "IP" "ADDRESS"
+    # Cabeçalho
+    echo -e "${NC}${LINE}"
+    echo -e "${GREEN}[+] Resolvendo URLs em:${NC} $URL"
+    echo -e "${NC}${LINE}"
+    echo -e "${RED}Concluído: Salvando os resultados em: $URL.ip.txt"
+    echo -e "${NC}${LINE}"
+    printf "${NC}%-10s %-15s %-20s${NC}\n" "Line" "IP" "ADDRESS"
 
-# Contador
-i=1
-OUTPUT_FILE="${URL//http:\/\//}.ip.txt" > "$OUTPUT_FILE"
+    # Contador
+    i=1
+    OUTPUT_FILE="${URL//http:\/\//}.ip.txt" > "$OUTPUT_FILE"
 
-for link in $LINKS; do
-    # Pega o domínio
-    if [[ "$link" == http* ]]; then
-        DOMAIN=$(echo "$link" | awk -F/ '{print $3}')
-    elif [[ "$link" == /* ]]; then
-        DOMAIN=$(echo "$URL" | awk -F/ '{print $3}')
+    for link in $LINKS; do
+        # Pega o domínio
+        if [[ "$link" == http* ]]; then
+            DOMAIN=$(echo "$link" | awk -F/ '{print $3}')
+        elif [[ "$link" == /* ]]; then
+            DOMAIN=$(echo "$URL" | awk -F/ '{print $3}')
+        else
+            continue
+        fi
+
+        # Resolve o IP
+        IP=$(host "$DOMAIN" | grep "has address" | head -n1 | awk '{print $4}')
+
+        # Se achou IP, exibe
+        if [ -n "$IP" ]; then
+            printf "%-8s %-16s %-40s\n" "$i" "$IP" "$link"
+            echo "$IP $link" >> "$OUTPUT_FILE"
+            ((i++))
+        fi
+    done
+
+    echo -e "${NC}${LINE}"
+    read -p "$(echo -e "${GREEN}- Nova pesquisa? y/n: ${NC}")" RESPOSTA
+
+    if [[ "$RESPOSTA" =~ ^[Yy]$ ]]; then
+        read -p "$(echo -e "${YELLOW}Nova URL: ${NC}")" NOVA_URL
+        if [ -n "$NOVA_URL" ]; then
+            URL="$NOVA_URL"
+        else
+            echo -e "${RED}[x] URL vazia. Encerrando.${NC}"
+            break
+        fi
     else
-        continue
-    fi
-
-    # Resolve o IP
-    IP=$(host "$DOMAIN" | grep "has address" | head -n1 | awk '{print $4}')
-
-    # Se achou IP, exibe
-    if [ -n "$IP" ]; then
-        printf "%-8s %-16s %-40s\n" "$i" "$IP" "$link"
-        echo "$IP $link" >> "$OUTPUT_FILE"
-        ((i++))
+        echo -e "${RED}[x] Saindo..."
+        break
     fi
 done
-
-echo -e "${NC}${LINE}"
-echo -e "${GREEN}- Nova pesquisa? y/n"
